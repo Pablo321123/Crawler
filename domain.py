@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 import requests
 from traceback import *
 
+from crawler.util_methods import addSchemeToUrl
+
 RED = "\033[1;31m"
 GREEN = "\033[0;32m"
 BOLD = "\033[;1m"
@@ -29,18 +31,19 @@ class Domain:
     def is_accessible(self) -> bool:
         try:
             # Caso o nome do dominio nao esteja com o formato de URL (sem protocolo de segurança ('HTTPS'), adicionamos ele abaixo
-            url = self.nam_domain
-            parsed_url = urlparse(url)
-            if not parsed_url.scheme:
-                url = 'https://' + url
+            url = addSchemeToUrl(urlparse(self.nam_domain))
+            # url = self.nam_domain
+            # parsed_url = urlparse(url)
+            # if not parsed_url.scheme:
+            #     url = 'https://' + url
 
             # print(url)
-
-            response = requests.get(url)
-            # Se o método status_code da classe requests retornar um codigo diferente de 200, a conexão falhou!
-            if (response.status_code == 200) and (self.time_since_last_access.seconds > self.time_limit_seconds):
-                print(GREEN + "O dominio está acessivel!" + RESET)
-                return True
+            if (self.time_since_last_access.seconds >= self.time_limit_seconds):
+                response = requests.get(url)
+                # Se o método status_code da classe requests retornar um codigo diferente de 200, a conexão falhou!
+                if (response.status_code == 200):
+                    print(GREEN + "O dominio está acessivel!" + RESET)
+                    return True
 
         except Exception as e:
             print(self.nam_domain)

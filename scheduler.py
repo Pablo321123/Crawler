@@ -1,6 +1,7 @@
 from datetime import time
 from urllib import robotparser
 from urllib.parse import ParseResult
+from crawler.util_methods import *
 
 from util.threads import synchronized
 import time as ti
@@ -17,7 +18,7 @@ class Scheduler:
     # tempo (em segundos) entre as requisições
     TIME_LIMIT_BETWEEN_REQUESTS = 20
 
-    def __init__(self, usr_agent: str, page_limit: int, depth_limit: int, arr_urls_seeds):
+    def __init__(self, usr_agent: str, page_limit: int, depth_limit: int, arr_urls_seeds: ParseResult):
         """
         :param usr_agent: Nome do `User agent`. Usualmente, é o nome do navegador, em nosso caso,  será o nome do coletor (usualmente, terminado em `bot`)
         :param page_limit: Número de páginas a serem coletadas
@@ -39,6 +40,12 @@ class Scheduler:
         self.dic_url_per_domain = OrderedDict()
         self.set_discovered_urls = set()
         self.dic_robots_per_domain = {}
+        
+        seedPages = [(obj_url, 0) for obj_url in arr_urls_seeds]
+        
+        for page in seedPages:
+            self.add_new_page(*page) #'*' -> serve para descompactar as tuplas criadas em seedPage e envialas como parametros separados      
+        
 
     @synchronized
     def count_fetched_page(self) -> None:
@@ -78,7 +85,7 @@ class Scheduler:
         :return: True caso a página foi adicionada. False caso contrário
         """
         # https://docs.python.org/3/library/urllib.parse.html
-
+    
         if self.can_add_page(obj_url, depth):
             addDomain = Domain(obj_url.netloc, 10)
 
@@ -109,17 +116,17 @@ class Scheduler:
         servers_list = self.dic_url_per_domain  # lsita de servidores
 
         if not servers_list:
-            print(CYAN + "Fila de servidores vazias, aguardando 10 segs..." + RESET)
+            print(CYAN + "Fila de servidores vazias, aguardando 25 segs..." + RESET)
             ti.sleep(25)
             return None, None
 
         else:
             for key, value in servers_list.items():
-                if key.is_accessible(): #Encontra o primeiro servidor acessivel                     
+                if key.is_accessible():  # Encontra o primeiro servidor acessivel
                     break
             tupla_d = value[0][0]  # objeto ParseResult (url)
             tupla_n = value[0][1]  # profundidade
-            
+
             # Acessa a lista de tuplas na chave objeto_domain_1
             tuplas = servers_list[key]
             # Percorre a lista e remove a tupla que você deseja remover
@@ -140,5 +147,38 @@ class Scheduler:
         """
         Verifica, por meio do robots.txt se uma determinada URL pode ser coletada
         """
+        text = ''
+        is_allowed_url = False
 
-        return False
+        try:
+            # instancia da classe RobotFileParser
+            rp = robotparser.RobotFileParser()
+            nam_domain = obj_url.netloc
+
+            # Ler o arquivo robots.txt do dominio
+            robotUrl = addRobotToUrl(obj_url)
+            rp.set_url(robotUrl)
+            rp.read()
+
+            #verifica se ja foi realizada uma requisicao no dominio
+            if nam_domain in self.dic_robots_per_domain:
+                text = f"{RED}[FALHA]{RESET} Já foi realizada a requisição do domínio {obj_url.netloc} uma vez!"
+                is_allowed_url = False
+            else:
+                #caso não tenha feito, eh adicionado o dominio no dicionario
+                self.dic_robots_per_domain[nam_domain] = '1'
+
+                if rp.can_fetch("*", obj_url.geturl()):
+                    text = f"{GREEN}A url {obj_url.geturl()} pode ser coletada!{RESET}"
+                    is_allowed_url = True
+                else:
+                    text = f"{RED}A url {obj_url.geturl()} não pode ser coletada!{RESET}"
+                    is_allowed_url = False
+            
+            print(text)
+            return is_allowed_url
+
+        except Exception as e:
+            print(
+                RED + f"Falha ao ler o arquivo robots.txt do dominio {obj_url.netloc}" + RESET)
+            return False
