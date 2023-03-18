@@ -35,7 +35,7 @@ rp = urllib.robotparser.RobotFileParser()
 rp.user_agent = "*"
 
 # Obtém a URL base do site para usar como prefixo em urls relativas
-base_url = urljoin("http://www.terra.com", "/")
+base_url = urljoin("http://www.terra.com.br", "/")
 
 # Faz uma requisição ao arquivo robots.txt
 robots_url = urljoin(base_url, "robots.txt")
@@ -50,6 +50,6 @@ robots_bytes = BytesIO(response.content)
 
 rp.set_url(robots_url) #robotUrl passa a ter o valor https://www.terra.com/index.html neste exemplo
 rp.read()
-print(rp.can_fetch("*", "https://www.terra.com/index.html"))
+print(rp.can_fetch("*", "https://www.terra.com.br/index.html"))
 
 

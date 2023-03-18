@@ -17,9 +17,16 @@ class PageFetcher(Thread):
         :return: Conteúdo em binário da URL passada como parâmetro, ou None se o conteúdo não for HTML
         """
 
-        response = None
+        # Faz conexão informando o coletor a ser utilizado
+        headerRequest = {"User-Agent": "*"}
+        r = requests.get(obj_url.geturl(), headers=headerRequest)
+        typeDocument = r.headers['content-type']
 
-        return response.content
+        # Caso a conexão seja bem sucedida e o tipo do documento seja html, retorna o conteudo da página em binário
+        if (r.status_code == 200) and ('html' in typeDocument):
+            return r.content
+        else:
+            return None
 
     def discover_links(self, obj_url: ParseResult, depth: int, bin_str_content: bytes):
         """
