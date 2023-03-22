@@ -33,9 +33,10 @@ class PageFetcher(Thread):
         Retorna os links do conteúdo bin_str_content da página já requisitada obj_url
         """
         soup = BeautifulSoup(bin_str_content, features="lxml")
-        for link in soup.select(None):
-            obj_new_url = None
-            new_depth = None
+        for link in soup.select("a[href]"):
+            link.clear()
+            obj_new_url = urlparse(link.attrs['href'])
+            new_depth = depth + 1
 
             yield obj_new_url, new_depth
 
