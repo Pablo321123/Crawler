@@ -38,8 +38,8 @@ class PageFetcher(Thread):
         """
 
         mainDomain = obj_url.netloc
-
         soup = BeautifulSoup(bin_str_content, features="lxml")
+        
         for link in soup.select("a[href]"):
             link.clear()
             obj_new_url = urlparse(link.attrs['href'])
@@ -95,8 +95,8 @@ class PageFetcher(Thread):
             # os novos links encontrado são adicionada no nosso dicionario de url, caso ja nao tenha sido descorbertos antes, para serem coletados no futuro
             for d_obj_url, d_depth in discoveredLinks:
                 self.obj_scheduler.add_new_page(d_obj_url, d_depth)
-
-            print(discoveredLinks)
+           
+        
 
     def run(self):
         """

@@ -40,12 +40,12 @@ class Scheduler:
         self.dic_url_per_domain = OrderedDict()
         self.set_discovered_urls = set()
         self.dic_robots_per_domain = {}
-        
-        seedPages = [(obj_url, 0) for obj_url in arr_urls_seeds]
-        
+
+        seedPages = [(obj_url, 1) for obj_url in arr_urls_seeds]
+
         for page in seedPages:
-            self.add_new_page(*page) #'*' -> serve para descompactar as tuplas criadas em seedPage e envialas como parametros separados      
-        
+            # '*' -> serve para descompactar as tuplas criadas em seedPage e envialas como parametros separados
+            self.add_new_page(*page)
 
     @synchronized
     def count_fetched_page(self) -> None:
@@ -53,8 +53,8 @@ class Scheduler:
         Contabiliza o número de paginas já coletadas
         """
         self.page_count += 1
-        
-        print(GREEN + self.page_count + CYAN + " Páginas alcançadas")
+
+        print(f"{GREEN} {self.page_count} {CYAN} Páginas alcançadas")
 
     def has_finished_crawl(self) -> bool:
         """
@@ -68,15 +68,14 @@ class Scheduler:
         :return: True caso a profundidade for menor que a maxima e a url não foi descoberta ainda. False caso contrário.
         """
 
-        if (depth > self.depth_limit) or (obj_url.geturl in self.set_discovered_urls):
+        if (depth > self.depth_limit) or (obj_url.geturl() in self.set_discovered_urls):
             print(RED + "A url: " + obj_url.geturl() +
                   " não pode ser adicionada!" + RESET)
             return False
-
-        self.set_discovered_urls.add(obj_url.geturl())
-        print(CYAN + "A url: " + obj_url.geturl() +
-              " pode ser adicionada!" + RESET)
-        return True
+        else:
+            print(CYAN + "A url: " + obj_url.geturl() +
+                  " pode ser adicionada!" + RESET)
+            return True
 
     @synchronized
     def add_new_page(self, obj_url: ParseResult, depth: int) -> bool:
@@ -87,25 +86,29 @@ class Scheduler:
         :return: True caso a página foi adicionada. False caso contrário
         """
         # https://docs.python.org/3/library/urllib.parse.html
-    
-        if self.can_add_page(obj_url, depth):
-            addDomain = Domain(obj_url.netloc, 10)
 
-            # Verifica se já existe uma chave com o objeto Domain (Url, time_Limit)
+        if self.can_add_page(obj_url, depth):
+
+            addDomain = Domain(obj_url.netloc, self.TIME_LIMIT_BETWEEN_REQUESTS)
+            self.set_discovered_urls.add(obj_url.geturl())            
+
+            # # Caso nao exista uma chave com o dominio, ele cria uma
+            # self.dic_url_per_domain.setdefault(
+            #     addDomain, []).append((obj_url, depth))
+
+            #Verifica se já existe uma chave com o objeto Domain (Url, time_Limit)
             if addDomain in self.dic_url_per_domain:
                 # Caso a url exista na lista de dicionarios, ele irar adicionar uma pagina de profundidade
                 if (obj_url.geturl() in self.dic_url_per_domain):
-                    self.dic_url_per_domain[addDomain].append(
-                        (obj_url, depth))
+                    self.dic_url_per_domain[addDomain].append((obj_url, depth+1))
             else:
                 # Caso não exista esta chave do Domain, ele cria uma
-                self.dic_url_per_domain[addDomain] = [
-                    (obj_url, depth)]
+                self.dic_url_per_domain[addDomain] = [(obj_url, depth+1)]
 
-            print(GREEN + "Pagina adicionada com sucesso!" + RESET)
+            print(GREEN + "[SUCESSO] Pagina adicionada!" + RESET)
             return True
 
-        print(RED + "Nao foi possivel adicionar esta pagina!" + RESET)
+        print(RED + "[FALHA] Pagina repetida!" + RESET)
         return False
 
     @ synchronized
@@ -125,6 +128,7 @@ class Scheduler:
         else:
             for key, value in servers_list.items():
                 if key.is_accessible():  # Encontra o primeiro servidor acessivel
+                    key.accessed_now()
                     break
             tupla_d = value[0][0]  # objeto ParseResult (url)
             tupla_n = value[0][1]  # profundidade
@@ -151,36 +155,38 @@ class Scheduler:
         """
         text = ''
         is_allowed_url = False
+        nam_domain = obj_url.netloc
 
-        try:
-            # instancia da classe RobotFileParser
-            rp = robotparser.RobotFileParser()
-            nam_domain = obj_url.netloc
+        # verifica se ja foi realizada uma requisicao no dominio
+        if nam_domain in self.dic_robots_per_domain:
+            text = f"{RED}[FALHA]{RESET} Já foi realizada a requisição do domínio {obj_url.netloc} uma vez!"
+            is_allowed_url = False
+        else:
+            try:
+                # instancia da classe RobotFileParser
+                rp = robotparser.RobotFileParser()
 
-            # Ler o arquivo robots.txt do dominio
-            robotUrl = addRobotToUrl(obj_url)
-            rp.set_url(robotUrl)
-            rp.read()
+                # Ler o arquivo robots.txt do dominio e adicionar o robo no dominio
+                robotUrl = addRobotToUrl(obj_url)
+                rp.set_url(robotUrl)
+                rp.read()
 
-            #verifica se ja foi realizada uma requisicao no dominio
-            if nam_domain in self.dic_robots_per_domain:
-                text = f"{RED}[FALHA]{RESET} Já foi realizada a requisição do domínio {obj_url.netloc} uma vez!"
-                is_allowed_url = False
-            else:
-                #caso não tenha feito, eh adicionado o dominio no dicionario
+                # caso não tenha feito, eh adicionado o dominio no dicionario
+                # marco como 1, um dominio no qual meu robo ja visitou
                 self.dic_robots_per_domain[nam_domain] = '1'
 
-                if rp.can_fetch("*", obj_url.geturl()):
+                # Caso seja possivel coletar, retorna true e imprime uma mensagem
+                if rp.can_fetch(self.usr_agent, obj_url.geturl()):
                     text = f"{GREEN}A url {obj_url.geturl()} pode ser coletada!{RESET}"
                     is_allowed_url = True
-                else:
+                else:  # Caso contrario, retorna falso!
                     text = f"{RED}A url {obj_url.geturl()} não pode ser coletada!{RESET}"
                     is_allowed_url = False
-            
-            print(text)
-            return is_allowed_url
 
-        except Exception as e:
-            print(
-                RED + f"Falha ao ler o arquivo robots.txt do dominio {obj_url.netloc}" + RESET)
-            return False
+                print(text)
+                return is_allowed_url
+
+            except Exception as e:
+                print(
+                    RED + f"Falha ao ler o arquivo robots.txt do dominio {obj_url.netloc}" + RESET)
+                return False
