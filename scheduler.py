@@ -53,12 +53,14 @@ class Scheduler:
         Contabiliza o número de paginas já coletadas
         """
         self.page_count += 1
+        
+        print(GREEN + self.page_count + CYAN + " Páginas alcançadas")
 
     def has_finished_crawl(self) -> bool:
         """
         :return: True se finalizou a coleta. False caso contrário.
         """
-        return self.page_count >= self.page_limit
+        return self.page_count >= self.page_limit or not self.dic_url_per_domain
 
     @synchronized
     def can_add_page(self, obj_url: ParseResult, depth: int) -> bool:
@@ -145,7 +147,7 @@ class Scheduler:
 
     def can_fetch_page(self, obj_url: ParseResult) -> bool:
         """
-        Verifica, por meio do robots.txt se uma determinada URL pode ser coletada
+        Verifica, por meio do robots.txt, se uma determinada URL pode ser coletada
         """
         text = ''
         is_allowed_url = False
