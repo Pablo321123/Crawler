@@ -41,7 +41,7 @@ class Scheduler:
         self.set_discovered_urls = set()
         self.dic_robots_per_domain = {}
 
-        seedPages = [(obj_url, 1) for obj_url in arr_urls_seeds]
+        seedPages = [(obj_url, 0) for obj_url in arr_urls_seeds]
 
         for page in seedPages:
             # '*' -> serve para descompactar as tuplas criadas em seedPage e envialas como parametros separados
@@ -54,7 +54,7 @@ class Scheduler:
         """
         self.page_count += 1
 
-        print(f"{GREEN} {self.page_count} {CYAN} Páginas alcançadas")
+        print(f"{GREEN} {self.page_count} {CYAN} Páginas extraidas")
 
     def has_finished_crawl(self) -> bool:
         """
@@ -68,9 +68,13 @@ class Scheduler:
         :return: True caso a profundidade for menor que a maxima e a url não foi descoberta ainda. False caso contrário.
         """
 
-        if (depth > self.depth_limit) or (obj_url.geturl() in self.set_discovered_urls):
-            print(RED + "A url: " + obj_url.geturl() +
-                  " não pode ser adicionada!" + RESET)
+        if depth > self.depth_limit:
+            print(RED + "[FALHA] " + CYAN + obj_url.geturl() +
+                  " está alem do limite de profundidade!" + RESET)
+            return False
+        elif obj_url.geturl() in self.set_discovered_urls:
+            print(
+                f"{RED}[FALHA] {obj_url.geturl()}{CYAN} Pagina repetida! {RESET}")
             return False
         else:
             print(CYAN + "A url: " + obj_url.geturl() +
@@ -89,26 +93,28 @@ class Scheduler:
 
         if self.can_add_page(obj_url, depth):
 
-            addDomain = Domain(obj_url.netloc, self.TIME_LIMIT_BETWEEN_REQUESTS)
-            self.set_discovered_urls.add(obj_url.geturl())            
+            addDomain = Domain(
+                obj_url.netloc, self.TIME_LIMIT_BETWEEN_REQUESTS)
+            self.set_discovered_urls.add(obj_url.geturl())
+            # print(self.set_discovered_urls)
 
-            # # Caso nao exista uma chave com o dominio, ele cria uma
-            # self.dic_url_per_domain.setdefault(
-            #     addDomain, []).append((obj_url, depth))
-
-            #Verifica se já existe uma chave com o objeto Domain (Url, time_Limit)
+            # Verifica se já existe uma chave com o objeto Domain (Url, time_Limit)
             if addDomain in self.dic_url_per_domain:
                 # Caso a url exista na lista de dicionarios, ele irar adicionar uma pagina de profundidade
                 if (obj_url.geturl() in self.dic_url_per_domain):
-                    self.dic_url_per_domain[addDomain].append((obj_url, depth+1))
+                    self.dic_url_per_domain[addDomain].append(
+                        (obj_url, depth+1))
             else:
-                # Caso não exista esta chave do Domain, ele cria uma
-                self.dic_url_per_domain[addDomain] = [(obj_url, depth+1)]
+                # Caso não exista esta chave do Domain, ele cria uma com profundidade 0
+                self.dic_url_per_domain[addDomain] = [(obj_url, depth)]
 
             print(GREEN + "[SUCESSO] Pagina adicionada!" + RESET)
+            
+            with open(f"{self.usr_agent}.txt", "a", encoding="utf-8") as file:
+                file.write(f"{obj_url.netloc}: {obj_url.geturl()}\n")
+
             return True
 
-        print(RED + "[FALHA] Pagina repetida!" + RESET)
         return False
 
     @ synchronized
@@ -126,33 +132,53 @@ class Scheduler:
             return None, None
 
         else:
-            for key, value in servers_list.items():
-                if key.is_accessible():  # Encontra o primeiro servidor acessivel
-                    key.accessed_now()
-                    break
-            tupla_d = value[0][0]  # objeto ParseResult (url)
-            tupla_n = value[0][1]  # profundidade
+            # [OTIMIZACAO] Aqui realiazo a exclusão de uma requesitada
+            while self.dic_url_per_domain:
+                for key in self.dic_url_per_domain:
+                    if key.is_accessible():  # Encontra o primeiro servidor acessivel
+                        key.accessed_now()
+                        objUrl, objDepth = self.dic_url_per_domain[key].pop(0)
+                        print(
+                            f"{GREEN}[SUCESSO] {CYAN}Servidor: {key} acessado!" + RESET)
 
-            # Acessa a lista de tuplas na chave objeto_domain_1
-            tuplas = servers_list[key]
-            # Percorre a lista e remove a tupla que você deseja remover
-            for i, t in enumerate(tuplas):
-                if t in value:
-                    del tuplas[i]
-                    self.dic_url_per_domain[key] = tuplas
-                    break
+                        if len(self.dic_url_per_domain[key]) <= 0:
+                            self.dic_url_per_domain.pop(key)
+                            print(
+                                f"{GREEN}[SUCESSO] {CYAN}Servidor: {key} removido! {RESET}")
 
-            if not servers_list[key]:
-                print(f"{CYAN} Servidor: {key} removido {RESET}")
-                self.dic_url_per_domain.pop(key)
+                    return objUrl, objDepth
 
-            print(GREEN + f"Servidor {key} acessado!" + RESET)
-            return tupla_d, tupla_n
+            # for key, value in servers_list.items():
+            #     if key.is_accessible():  # Encontra o primeiro servidor acessivel
+            #         key.accessed_now()
+            #         break
+            # tupla_d = value[0][0]  # objeto ParseResult (url)
+            # tupla_n = value[0][1]  # profundidade
+
+            # # Acessa a lista de tuplas na chave objeto_domain_1
+            # tuplas = servers_list[key]
+            # # Percorre a lista e remove a tupla que você deseja remover
+            # for i, t in enumerate(tuplas):
+            #     if t in value:
+            #         del tuplas[i]
+            #         self.dic_url_per_domain[key] = tuplas
+            #         break
+
+            # if not servers_list[key]:
+            #     print(f"{CYAN} Servidor: {key} removido {RESET}")
+            #     self.dic_url_per_domain.pop(key)
+
+            # print(GREEN + f"Servidor {key} acessado!" + RESET)
+            # return tupla_d, tupla_n
 
     def can_fetch_page(self, obj_url: ParseResult) -> bool:
         """
         Verifica, por meio do robots.txt, se uma determinada URL pode ser coletada
         """
+
+        if not obj_url:
+            return False
+
         text = ''
         is_allowed_url = False
         nam_domain = obj_url.netloc

@@ -29,26 +29,16 @@ class Domain:
         self.time_last_access = datetime.now()
 
     def is_accessible(self) -> bool:
-        try:
-            # Caso o nome do dominio nao esteja com o formato de URL (sem protocolo de segurança ('HTTPS'), adicionamos ele abaixo
-            url = addSchemeToUrl(urlparse(self.nam_domain))
-            # url = self.nam_domain
-            # parsed_url = urlparse(url)
-            # if not parsed_url.scheme:
-            #     url = 'https://' + url
 
-            # print(url)
-            if (self.time_since_last_access.seconds >= self.time_limit_seconds):
-                response = requests.get(url)
-                # Se o método status_code da classe requests retornar um codigo diferente de 200, a conexão falhou!
-                if (response.status_code == 200):
-                    print(GREEN + "O dominio está acessivel!" + RESET)
-                    return True
+        # Caso o nome do dominio nao esteja com o formato de URL (sem protocolo de segurança ('HTTPS'), adicionamos ele abaixo
+        # url = addSchemeToUrl(urlparse(self.nam_domain))
 
-        except Exception as e:
-            print(self.nam_domain)
+        if (self.time_since_last_access.total_seconds() >= self.time_limit_seconds):
+            
+            print(GREEN + "[SUCESSO] O dominio está acessivel!" + RESET)
+            return True
 
-        print(RED + "Falha ao se conectar!" + RESET)
+        print(RED + f"[FALHA] Espere {self.time_limit_seconds} segundos para requisitar novamente!" + RESET)
         return False
 
     def __hash__(self):
